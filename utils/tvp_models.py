@@ -182,7 +182,7 @@ class TVPVARModel:
                     l_0           = norm.logpdf(self.mt1t[:,t],np.zeros(self.k),self.tau_0*np.ones(self.k))
                     l_1           = norm.logpdf(self.mt1t[:,t],np.zeros(self.k),self.tau_1*np.ones(self.k))
                     gamma         = 1/(np.multiply(1+(np.divide((1-self.pi0),self.pi0)),np.exp(l_0-l_1)))
-                    self.pi0           = np.mean(gamma)
+                    self.pi0      = np.mean(gamma)
                     self.tv_probs[t, :] = gamma
                     lambda_t[t,:] = (1/(self.tau_0**2))*np.ones(self.k)
                     lambda_t[t,gamma==1] = (1/(self.tau_1**2))
