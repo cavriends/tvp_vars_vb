@@ -1,7 +1,7 @@
 import numpy as np
 
-
 def transformation(series, code, transform=True):
+    transformed_series = np.zeros(series.shape[0])
 
     if transform:
         if code == 1:
@@ -9,7 +9,7 @@ def transformation(series, code, transform=True):
             transformed_series = series
         elif code == 2:
             # first-difference
-            transformed_series = first_difference = series[1:] - series[:-1]
+            transformed_series[1:] = series[1:] - series[:-1]
         elif code == 3:
             # second-difference
             transformed_series = series[2:] - series[:-2]
@@ -18,10 +18,10 @@ def transformation(series, code, transform=True):
             transformed_series = np.log(series)
         elif code == 5:
             # first-difference log
-            transformed_series = np.log(series[1:]) - np.log(series[:-1])
+            transformed_series[1:] = np.log(series[1:]) - np.log(series[:-1])
         elif code == 6:
             # second-difference log
-            transformed_series = np.log(series[2:]) - np.log(series[:-2])
+            transformed_series[2:] = np.log(series[2:]) - np.log(series[:-2])
 
         return transformed_series
     else:
