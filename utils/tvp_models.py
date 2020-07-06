@@ -44,7 +44,7 @@ class TVPVARModel:
 
         elif prior == 'lasso':
             if prior_default:
-                prior_parameters = {'lambda_param': 50}
+                prior_parameters = {'lambda_param': 100}
 
             self.tau_lasso = np.ones((self.T_train, self.k))
             self.lambda_param = prior_parameters['lambda_param']
@@ -289,6 +289,6 @@ class TVPVARModel:
 
             self.T_train =  self.initial_T_train
             self.train_index = self.initial_train_index
-            
+
         return self.prev_pred
 
