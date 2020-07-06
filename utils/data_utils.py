@@ -132,3 +132,14 @@ def create_dgp_data(T, M, p):
     y = y.T
 
     return X, y
+
+def standardize(series, train):
+
+    standardized_series = []
+
+    for individual_series in series:
+        standardized = (individual_series - individual_series[:train].mean())/individual_series[:train].std()
+
+        standardized_series.append(standardized)
+
+    return standardized_series
