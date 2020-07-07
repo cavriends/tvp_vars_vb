@@ -16,38 +16,44 @@ class TVPVARModel:
         self.T_train = train_index - self.p
         self.initialized_priors = False
         self.initialized_volatility = False
+        self.prior_parameters = None
+        self.prediction_switch = False
 
     def create_train(self):
         self.X_train = self.X[:self.T_train, :]
         self.y_train = self.y[:self.T_train, :]
 
-    def initialize_priors(self, prior='svss', prior_parameters={'tau_0':0.1, 'tau_1':10, 'pi0':0.5},
+    def initialize_priors(self, prior='svss', prior_parameters=None,
                           prior_default=True):
+
         self.prior = prior
+
+        if prior_parameters != None:
+            self.prior_parameters = prior_parameters
 
         if self.prior == 'svss':
             if prior_default:
-                prior_parameters = {'tau_0':0.1, 'tau_1':10, 'pi0':0.5}
+                self.prior_parameters = {'tau_0':0.1, 'tau_1':10, 'pi0':0.5}
 
-            self.tau_0 = prior_parameters['tau_0']
-            self.tau_1 = prior_parameters['tau_1']
-            self.pi0 = prior_parameters['pi0']
+            self.tau_0 = self.prior_parameters['tau_0']
+            self.tau_1 = self.prior_parameters['tau_1']
+            self.pi0 = self.prior_parameters['pi0']
 
         elif self.prior == 'horseshoe':
             if prior_default:
-                prior_parameters = {'a0': 10, 'b0': 10}
+                self.prior_parameters = {'a0': 10, 'b0': 10}
 
-            self.a0_horseshoe = prior_parameters['a0']
-            self.b0_horseshoe = prior_parameters['b0']
+            self.a0_horseshoe = self.prior_parameters['a0']
+            self.b0_horseshoe = self.prior_parameters['b0']
             self.lambda_t_horseshoe = np.ones(self.T_train)
             self.phi_t = np.ones((self.T_train, self.k))
 
         elif prior == 'lasso':
             if prior_default:
-                prior_parameters = {'lambda_param': 100}
+                self.prior_parameters = {'lambda_param': 50}
 
             self.tau_lasso = np.ones((self.T_train, self.k))
-            self.lambda_param = prior_parameters['lambda_param']
+            self.lambda_param = self.prior_parameters['lambda_param']
 
         self.initialized_priors = True
 
@@ -75,8 +81,10 @@ class TVPVARModel:
 
         self.create_train()
 
-        if not self.initialized_priors:
+        if (not self.initialized_priors) & (not self.prediction_switch):
             self.initialize_priors()
+        elif (not self.initialized_priors) & self.prediction_switch:
+            self.initialize_priors(prior=self.prior, prior_default=False)
             
         if not self.initialized_volatility:
             self.set_volatility()
@@ -254,6 +262,8 @@ class TVPVARModel:
 
     def calculate_predictions(self, total_h):
 
+        self.prediction_switch = True
+
         self.initial_T_train = self.T_train
         self.initial_train_index = self.train_index
 
@@ -291,4 +301,17 @@ class TVPVARModel:
             self.train_index = self.initial_train_index
 
         return self.prev_pred
+
+    def calculate_msfe(self, total_h):
+
+        msfe_tvp = np.zeros(total_h)
+        self.y_pred = self.calculate_predictions(total_h)
+
+        for h in range(total_h):
+            if h == 0:
+                msfe_tvp[h] = np.mean((self.y[(self.train_index - self.p):] - self.y_pred[:, :, 0]) ** 2)
+            else:
+                msfe_tvp[h] = np.mean((self.y[(self.train_index - self.p + h):] - self.y_pred[:-h, :, h]) ** 2)
+
+        return msfe_tvp
 
