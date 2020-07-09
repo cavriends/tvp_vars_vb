@@ -1,7 +1,7 @@
 import time
 import numpy as np
 from IPython.display import clear_output
-from scipy.stats import norm
+from scipy.stats import norm, multivariate_normal
 
 class TVPVARModel:
 
@@ -260,7 +260,7 @@ class TVPVARModel:
 
         return self.mt1t, self.St1t
 
-    def calculate_predictions(self, total_h):
+    def calculate_predictions(self, total_h=8, number_of_draws=0):
 
         self.prediction_switch = True
 
@@ -279,8 +279,14 @@ class TVPVARModel:
             __, __ = self.train(print_status=False)
 
             for h in range(total_h):
+                if number_of_draws > 0:
+                    self.prev_pred[t,:,h] = np.median(prev_X@self.mt1t[:,-1] +
+                                                      multivariate_normal.rvs(mean=np.zeros(self.M),
+                                                                              cov=np.diag(np.sqrt(self.sigma_t)),
+                                                                              size=number_of_draws),0)
+                else:
+                    self.prev_pred[t, :, h] = prev_X @ self.mt1t[:, -1]
 
-                self.prev_pred[t,:,h] = prev_X@self.mt1t[:,-1]
                 vec_X = prev_X[0, :(self.M * self.p + 1)]
 
                 empty_X = np.zeros((self.M * self.p + 1))
@@ -302,16 +308,48 @@ class TVPVARModel:
 
         return self.prev_pred
 
-    def calculate_msfe(self, total_h):
+    def calculate_metrics(self, total_h, number_of_draws=0):
 
         msfe_tvp = np.zeros(total_h)
-        self.y_pred = self.calculate_predictions(total_h)
+        alpl = np.zeros(total_h)
+
+        self.y_pred = self.calculate_predictions(total_h, number_of_draws)
 
         for h in range(total_h):
+
+            lpl = np.zeros(self.number_of_predictions-h)
+
             if h == 0:
-                msfe_tvp[h] = np.mean((self.y[(self.train_index - self.p):] - self.y_pred[:, :, 0]) ** 2)
+                y_true_h = self.y[(self.train_index - self.p):]
+                y_pred_h = self.y_pred[:, :, 0]
+
+                msfe_tvp[h] = np.mean((y_pred_h - y_true_h) ** 2)
+                for t in range(self.number_of_predictions):
+                    lpl[t] = multivariate_normal.pdf(y_true_h[t], y_pred_h[t], cov=np.cov(y_pred_h.T))
+
+                alpl[h] = lpl.mean()
+
             else:
-                msfe_tvp[h] = np.mean((self.y[(self.train_index - self.p + h):] - self.y_pred[:-h, :, h]) ** 2)
+                y_true_h = self.y[(self.train_index - self.p + h):]
+                y_pred_h = self.y_pred[:-h, :, h]
 
-        return msfe_tvp
+                msfe_tvp[h] = np.mean((y_pred_h - y_true_h) ** 2)
+                for t in range(self.number_of_predictions-h):
+                    lpl[t] = multivariate_normal.pdf(y_true_h[t], y_pred_h[t], cov=np.cov(y_pred_h.T))
 
+                alpl[h] = lpl.mean()
+
+        return msfe_tvp, alpl
+
+    def insample_msfe(self):
+
+        self.insample_y_pred = np.zeros((self.T_train, self.M))
+
+        for m in range(self.M):
+
+            for t in range(self.T_train):
+                self.insample_y_pred[t, m] = self.X_train[t, m, :]@self.mt1t[:, t]
+
+        self.insample_msfe = np.mean((self.insample_y_pred - self.y[:self.T_train]) ** 2)
+
+        return self.insample_msfe
