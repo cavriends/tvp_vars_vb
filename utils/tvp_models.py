@@ -260,7 +260,7 @@ class TVPVARModel:
 
         return self.mt1t, self.St1t
 
-    def calculate_predictions(self, total_h=8, number_of_draws=0):
+    def calculate_oos_predictions(self, total_h=8, number_of_draws=0):
 
         self.prediction_switch = True
 
@@ -313,7 +313,7 @@ class TVPVARModel:
         msfe_tvp = np.zeros(total_h)
         alpl = np.zeros(total_h)
 
-        self.y_pred = self.calculate_predictions(total_h, number_of_draws)
+        self.y_pred = self.calculate_oos_predictions(total_h, number_of_draws)
 
         for h in range(total_h):
 
