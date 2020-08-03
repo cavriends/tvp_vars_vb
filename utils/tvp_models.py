@@ -51,6 +51,8 @@ class TVPVARModel:
             self.b0_horseshoe = self.prior_parameters['b0']
             self.lambda_t_horseshoe = np.ones(self.T_train)
             self.phi_t = np.ones((self.T_train, self.k))
+            self.v = np.ones(((self.T_train, self.k)))
+            self.delta = np.ones(self.T_train)
 
         elif prior == 'lasso':
             if prior_default:
@@ -208,12 +210,16 @@ class TVPVARModel:
                     lambda_t[t, gamma == 1] = (1 / (self.tau_1 ** 2))
 
                 elif self.prior == 'horseshoe':
-                    self.lambda_t_horseshoe[t] = (self.a0_horseshoe + 0.5 * (
-                                                 (1 / self.phi_t[t, :]) @ (self.mt1t[:, t] ** 2) +
-                                                  np.diag(self.St1t[:, :, t]))) / self.k
-                    self.phi_t[t, :] = self.b0_horseshoe + (1 / (0.5 * self.lambda_t_horseshoe[t]) *
-                                                            (self.mt1t[:, t] ** 2 * np.diag(self.St1t[:, :, t])))
-                    
+                    self.lambda_t_horseshoe[t] = (1/self.delta[t] + 0.5 * (
+                                                 (1 / self.phi_t[t, :]) @ (self.mt1t[:, t] ** 2 +
+                                                  np.diag(self.St1t[:, :, t])))) / (self.k + 1/2 - 1)
+
+                    self.phi_t[t, :] = (1/self.v[t,:] +
+                                        0.5 * (self.mt1t[:, t] ** 2 + np.diag(self.St1t[:, :, t]))
+                                        / self.lambda_t_horseshoe[t])/0.5
+
+                    self.v[t,:] = (self.b0_horseshoe + (1/self.phi_t[t,:]))/(self.a0_horseshoe - 1)
+                    self.delta[t] = (self.b0_horseshoe + (1/self.lambda_t_horseshoe[t]))/(self.a0_horseshoe - 1)
 
                 elif self.prior == 'lasso':
                     self.tau_lasso[t, :] = 1 / np.sqrt((self.lambda_param ** 2 / self.mt1t[:, t] ** 2))
