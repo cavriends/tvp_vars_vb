@@ -7,13 +7,14 @@ from datetime import datetime, timedelta
 
 class TVPVARModel:
 
-    def __init__(self, X, y, p, train_index):
+    def __init__(self, X, y, p, train_index, iterations=100):
         self.X = X
         self.y = y
         self.T = X.shape[0]
         self.M = X.shape[1]
         self.k = X.shape[2]
         self.p = p
+        self.iterations = iterations
         self.train_index = train_index
         self.T_train = train_index - self.p
         self.initialized_priors = False
@@ -82,7 +83,7 @@ class TVPVARModel:
 
         self.initialized_volatility = True
 
-    def train(self, iterations=100, threshold=1.0e-4, print_status=True):
+    def train(self, threshold=1.0e-8, print_status=True):
 
         self.create_train()
 
@@ -125,9 +126,9 @@ class TVPVARModel:
         start_time = 0
         counter = 0
         mt1t_previous = np.ones((self.k, self.T_train))
-        difference_parameters = np.zeros(iterations)
+        difference_parameters = np.zeros(self.iterations)
 
-        while (counter < iterations) & (np.linalg.norm(self.mt1t - mt1t_previous) > threshold):
+        while (counter < self.iterations) & (np.linalg.norm(self.mt1t - mt1t_previous) > threshold):
 
             difference_parameters[counter] = np.linalg.norm(self.mt1t - mt1t_previous)
             mt1t_previous = self.mt1t
@@ -142,7 +143,7 @@ class TVPVARModel:
                     clear_output(wait=True)
                     print("Iteration: " + str(counter) + "\n" + "Elapsed time: " + str(elapsed_time) + " seconds")
 
-                if counter == iterations:
+                if counter == self.iterations:
                     clear_output(wait=True)
                     print("Done!")
 
@@ -201,8 +202,8 @@ class TVPVARModel:
 
             for t in range(self.T_train):
                 if self.prior == 'svss':
-                    l_0 = norm.logpdf(self.mt1t[:, t], np.zeros(self.k), self.tau_0 * np.ones(self.k))
-                    l_1 = norm.logpdf(self.mt1t[:, t], np.zeros(self.k), self.tau_1 * np.ones(self.k))
+                    l_0 = norm.logpdf(self.mt1t[:, t] + np.diag(self.St1t[:, :, t]), np.zeros(self.k), self.tau_0 * np.ones(self.k))
+                    l_1 = norm.logpdf(self.mt1t[:, t] + np.diag(self.St1t[:, :, t]) , np.zeros(self.k), self.tau_1 * np.ones(self.k))
                     gamma = 1 / (np.multiply(1 + (np.divide((1 - self.pi0), self.pi0)), np.exp(l_0 - l_1)))
                     self.pi0 = np.mean(gamma)
                     self.tv_probs[t, :] = gamma
@@ -212,17 +213,30 @@ class TVPVARModel:
                 elif self.prior == 'horseshoe':
                     self.lambda_t_horseshoe[t] = (1/self.delta[t] + 0.5 * (
                                                  (1 / self.phi_t[t, :]) @ (self.mt1t[:, t] ** 2 +
-                                                  np.diag(self.St1t[:, :, t])))) / (self.k + 1/2 - 1)
+                                                  np.abs(np.diag(self.St1t[:, :, t]))))) / (self.k + 1/2 - 1)
+
+                    # self.lambda_t_horseshoe[t] = (1 / self.b0_horseshoe + 0.5 * (
+                    #                              (1 / self.phi_t[t, :]) @ (self.mt1t[:, t] ** 2 +
+                    #                                   np.abs(np.diag(self.St1t[:, :, t]))))) / (self.k + self.a0_horseshoe - 1)
 
                     self.phi_t[t, :] = (1/self.v[t,:] +
-                                        0.5 * (self.mt1t[:, t] ** 2 + np.diag(self.St1t[:, :, t]))
-                                        / self.lambda_t_horseshoe[t])/0.5
+                                        (self.mt1t[:, t] ** 2 + np.abs(np.diag(self.St1t[:, :, t])))
+                                        / 2*self.lambda_t_horseshoe[t])/0.5
 
-                    self.v[t,:] = (self.b0_horseshoe + (1/self.phi_t[t,:]))/(self.a0_horseshoe - 1)
+                    # self.phi_t[t,:] = (1/(self.b0_horseshoe*np.ones(self.k)) +
+                    #                      0.5 * (self.mt1t[:, t] ** 2 + np.abs(np.diag(self.St1t[:, :, t])))
+                    #                      / self.lambda_t_horseshoe[t])/(self.a0_horseshoe - 0.5)
+
+                    self.v[t,:] = (self.b0_horseshoe + (1/(self.phi_t[t,:])**2))/(self.a0_horseshoe - 1)
                     self.delta[t] = (self.b0_horseshoe + (1/self.lambda_t_horseshoe[t]))/(self.a0_horseshoe - 1)
 
                 elif self.prior == 'lasso':
                     self.tau_lasso[t, :] = 1 / np.sqrt((self.lambda_param ** 2 / self.mt1t[:, t] ** 2))
+
+            if (self.prior == 'horseshoe') & (print_status):
+                print(f'lambda: {self.lambda_t_horseshoe.mean()},'
+                      f'phi: {self.phi_t.mean()}, v: {self.v.mean()}, delta: {self.delta.mean()} '
+                      f'mt1t: {self.mt1t.mean()}')
 
             # Update volatilities
             if self.homoskedastic:
@@ -375,6 +389,6 @@ class TVPVARModel:
             for t in range(self.T_train):
                 self.insample_y_pred[t, m] = self.X_train[t, m, :] @ self.mt1t[:, t]
 
-        self.insample_msfe = np.mean((self.insample_y_pred - self.y[:self.T_train]) ** 2)
+        self.insample_msfe_calculated = np.mean((self.insample_y_pred - self.y[:self.T_train]) ** 2)
 
-        return self.insample_msfe
+        return self.insample_msfe_calculated

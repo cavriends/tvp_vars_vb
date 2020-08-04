@@ -1,6 +1,6 @@
 import numpy as np
 
-def transformation(series, code, transform=True):
+def transformation(series, code, transform=True, scale=1):
     transformed_series = np.zeros(series.shape[0])
 
     if transform:
@@ -15,13 +15,15 @@ def transformation(series, code, transform=True):
             transformed_series = series[2:] - series[:-2]
         elif code == 4:
             # log
-            transformed_series = np.log(series)
+            transformed_series = np.log(series)*scale
         elif code == 5:
             # first-difference log
-            transformed_series[1:] = np.log(series[1:]) - np.log(series[:-1])
+            transformed_series[1:] = (np.log(series[1:]) -
+                                      np.log(series[:-1]))*scale
         elif code == 6:
             # second-difference log
-            transformed_series[2:] = np.log(series[2:]) - np.log(series[:-2])
+            transformed_series[2:] = (np.log(series[2:]) - 2*np.log(series[1:-1])
+                                     + np.log(series[:-2]))*scale
 
         return transformed_series
     else:
