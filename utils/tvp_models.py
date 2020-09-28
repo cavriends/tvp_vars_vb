@@ -462,8 +462,8 @@ class TVPVARModel:
 
                 msfe_tvp[h] = np.mean((y_pred_h - y_true_h) ** 2, 0)
                 for t in range(self.number_of_predictions):
-                    lpl[t] = multivariate_normal.pdf(y_true_h[t], y_pred_h[t], cov=np.cov(y_pred_h.T),
-                                                     allow_singular=True)
+                    lpl[t] = np.log(multivariate_normal.pdf(y_true_h[t], y_pred_h[t], cov=np.cov(y_pred_h.T),
+                                                     allow_singular=True) + 1e-16)
 
                 alpl[h] = lpl.mean()
 
@@ -473,8 +473,8 @@ class TVPVARModel:
 
                 msfe_tvp[h] = np.mean((y_pred_h - y_true_h) ** 2, 0)
                 for t in range(self.number_of_predictions - h):
-                    lpl[t] = multivariate_normal.pdf(y_true_h[t], y_pred_h[t], cov=np.cov(y_pred_h.T),
-                                                     allow_singular=True)
+                    lpl[t] = np.log(multivariate_normal.pdf(y_true_h[t], y_pred_h[t], cov=np.cov(y_pred_h.T),
+                                                     allow_singular=True) + 1e-16)
 
                 alpl[h] = lpl.mean()
 
