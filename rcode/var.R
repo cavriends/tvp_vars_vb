@@ -6,7 +6,7 @@ setwd('/Users/cavriends/Dropbox/ESE/MSc Econometrics/Thesis/Bayesian VARs/Code/J
 # install.packages("MARX")
 # install.packages('shrinkTVP')
 
-library(vars)
+library(vars) 
 library(BVAR)
 library(MARX)
 library(shrinkTVP)
@@ -127,7 +127,6 @@ var_ols_msd <- function(T, M, p, y, true_coeff) {
   return(final_msd)
   
 }
-
 
 #### B-VAR with Minnesota prior ####
 
@@ -349,7 +348,7 @@ tvp_bar <- function(T, M, p, train, y, x, mcmc_iter, h_steps, print_status=FALSE
                            niter=mcmc_iter, 
                            nburn=floor(mcmc_iter/2),
                            sv=FALSE,
-                           display_progress=FALSE)
+                           display_progress=TRUE)
       
       beta_mean <- unlist(lapply(lapply(tvp_fit$beta, colMeans), tail, 1))
       
@@ -436,68 +435,122 @@ tvp_bar_msd <- function(T, M, p, y, x, mcmc_iter, true_coeff, print_status=FALSE
 
 }
 
+#### ERROR HANDLING ####
+
+invalid_result <- function(model, h_steps=8) {
+  
+  invalid_list = list()
+  
+  for (i in 1:h_steps) {
+    invalid_list = append(invalid_list, list(1e+4))
+  }
+  
+  metrics_list = list("msfe" = invalid_list,
+                     "alpl" = invalid_list)
+  
+  msfe_string = paste("msfe_", model, sep="")
+  msd_string = paste("msd_", model, sep="")
+  
+  return_list = list(metrics_list,
+                     1e+4)
+  
+  names(return_list) <- c(msfe_string, msd_string)
+  
+  return(return_list)
+  
+}
+
 #### SIMULATION (it is embarrassingly parallel)  ####
 
-simulation_run <- function(run, M, mcmc_iter) {
+simulation_run <- function(run, M, mcmc_iter, sparsity=0.05) {
   
-  T = 200
+  T = 100
   train <- T+1-50
   number_of_predictions <- T - train
   h_steps <- 8
   p <- 1
   
-  y_dgp <- read.csv(paste("../simulations/datasets/",paste('y',M,T,p,run,sep="_"),'.csv', sep=""), header=FALSE)
-  x_dgp <- read.csv(paste("../simulations/datasets/",paste('x',M,T,p,run,sep="_"),'.csv', sep=""), header=FALSE)
-  coeff <- read.csv(paste("../simulations/datasets/",paste('coefficients',M,T,p,run,sep="_"),'.csv', sep=""), header=FALSE)
+  y_dgp <- read.csv(paste("../simulations/datasets/",paste('y', M, T, p, sparsity, run, 'het',sep="_"),'.csv', sep=""), header=FALSE)
+  x_dgp <- read.csv(paste("../simulations/datasets/",paste('x', M, T, p, sparsity, run, 'het',sep="_"),'.csv', sep=""), header=FALSE)
+  coeff <- read.csv(paste("../simulations/datasets/",paste('coefficients', M, T, p, sparsity, run, 'het',sep="_"),'.csv', sep=""), header=FALSE)
   
-  ## VAR-OLS ##
-  start_time = proc.time()
-  msfe_var_ols <- var_ols(T, M, p, train, y_dgp, h_steps)
-  msd_var_ols <- var_ols_msd(T, M, p, y_dgp, coeff)
-  elapsed_time = round((proc.time() - start_time)[3],4)
-  cat(paste("Run: ", run, "\t", "M: ", M, "\t","VAR -> DONE! | elapsed: ", elapsed_time, ' seconds | MSFE: ',  round(mean(unlist(msfe_var_ols$msfe)),4)," | ALPL: ", round(mean(unlist(msfe_var_ols$alpl))), " | MSD: ", round(msd_var_ols,6), "\n", sep=""))
+  # Minimal error handling is necessary due to possible initialization failures for priors in the Bayesian models. OLS based models shouldn't error out.
+  # However, as a precaution and in the name of consistency, error handling is also set up for these models.
   
-  ## B-VAR with Minnesota prior ##
-  start_time = proc.time()
-  msfe_bvar_minnesota <- bvar_minnesota(T, M, p, train, y_dgp, x_dgp, mcmc_iter, h_steps)
-  msd_bvar_minnesota <- bvar_minnesota_msd(T, M, p, y_dgp, mcmc_iter, coeff)
-  elapsed_time = round((proc.time() - start_time)[3],4)
-  cat(paste("Run: ", run, "\t", "M: ", M, "\t","BVAR -> DONE! | elapsed: ", elapsed_time, ' seconds | MSFE: ',  round(mean(unlist(msfe_bvar_minnesota$msfe)),4), " | ALPL: ", round(mean(unlist(msfe_bvar_minnesota$alpl)))," | MSD: ", round(msd_bvar_minnesota,6), "\n", sep=""))
-  
-  ## ARX with OLS ##
-  start_time = proc.time()
-  msfe_arx_ols <- arx_ols(T, M, p, train, y_dgp, x_dgp, h_steps)
-  msd_arx_ols <- arx_ols_msd(T, M, p, y_dgp, x_dgp, coeff)
-  elapsed_time = round((proc.time() - start_time)[3],4)
-  cat(paste("Run: ", run, "\t", "M: ", M, "\t","AR-X -> DONE! | elapsed: ", elapsed_time, ' seconds | MSFE: ',  round(mean(unlist(msfe_arx_ols$msfe)),4)," | ALPL: ", round(mean(unlist(msfe_arx_ols$alpl))), " | MSD: ", round(msd_arx_ols,6), "\n", sep=""))
-  
-  ## TVP-B-AR with Minnesota prior ##
-  start_time = proc.time()
-  msfe_tvp_bar <- tvp_bar(T, M, p, train, y_dgp, x_dgp, mcmc_iter, h_steps)
-  msd_tvp_bar <- tvp_bar_msd(T, M, p, y_dgp, x_dgp, mcmc_iter, coeff)
-  elapsed_time = round((proc.time() - start_time)[3],4)
-  cat(paste("Run: ", run, "\t", "M: ", M, "\t","TVP-B-AR -> DONE! | elapsed: ", elapsed_time, ' seconds | MSFE: ',  round(mean(unlist(msfe_tvp_bar$msfe)),4)," | ALPL: ", round(mean(unlist(msfe_tvp_bar$alpl))), " | MSD: ", round(msd_tvp_bar,6), "\n", sep=""))
-  
-  
-  result_list <- list("msfe_var_ols" = msfe_var_ols$msfe,
-                      "alpl_var_ols" = msfe_var_ols$alpl,
-                      "msfe_bvar_minnesota" = msfe_bvar_minnesota$msfe,
-                      "alpl_bvar_minnesota" = msfe_bvar_minnesota$alpl,
-                      "msfe_arx_ols" = msfe_arx_ols$msfe,
-                      "alpl_arx_ols" = msfe_arx_ols$alpl,
-                      "msfe_tvp_bar" = msfe_tvp_bar$msfe,
-                      "alpl_tvp_bar" = msfe_tvp_bar$alpl,
-                      "msd_var_ols" = msd_var_ols,
-                      "msd_bvar_minnesota" = msd_bvar_minnesota,
-                      "msd_arx_ols" = msd_arx_ols,
-                      "msd_tvp_bar" = msd_tvp_bar)
-  
-  if (M %% 25 == 0) {
+  var_result <- tryCatch({
+    ## VAR-OLS ##
+    start_time = proc.time()
+    msfe_var_ols <- var_ols(T, M, p, train, y_dgp, h_steps)
+    msd_var_ols <- var_ols_msd(T, M, p, y_dgp, coeff)
+    elapsed_time = round((proc.time() - start_time)[3],4)
+    cat(paste("Run: ", run, "\t", "M: ", M, "\t","VAR -> DONE! | elapsed: ", elapsed_time, ' seconds | MSFE: ',  round(mean(unlist(msfe_var_ols$msfe)),4)," | ALPL: ", round(mean(unlist(msfe_var_ols$alpl))), " | MSD: ", round(msd_var_ols,6), "\n", sep=""))
     
-    file_string <- paste(paste("statistics", M, run, p, "R", sep="_"), ".RData", sep="")
-    save(results, file=file_string) 
+    var_result = list("msfe_var_ols" = msfe_var_ols,
+                      "msd_var_ols" = msd_var_ols)
     
-  }
+  }, error = function(err) {
+    var_result = invalid_result(model="var_ols", h_steps)
+    cat(paste("Run: ", run, "\t", "M: ", M, "\t","VAR -> ERROR!" ))
+  })
+  
+  bvar_result = tryCatch({
+    ## B-VAR with Minnesota prior ##
+    start_time = proc.time()
+    msfe_bvar_minnesota <- bvar_minnesota(T, M, p, train, y_dgp, x_dgp, mcmc_iter, h_steps)
+    msd_bvar_minnesota <- bvar_minnesota_msd(T, M, p, y_dgp, mcmc_iter, coeff)
+    elapsed_time = round((proc.time() - start_time)[3],4)
+    cat(paste("Run: ", run, "\t", "M: ", M, "\t","BVAR -> DONE! | elapsed: ", elapsed_time, ' seconds | MSFE: ',  round(mean(unlist(msfe_bvar_minnesota$msfe)),4), " | ALPL: ", round(mean(unlist(msfe_bvar_minnesota$alpl)))," | MSD: ", round(msd_bvar_minnesota,6), "\n", sep=""))
+    
+    bvar_result = list("msfe_bvar_minnesota" = msfe_bvar_minnesota,
+                       "msd_bvar_minnesota" = msd_bvar_minnesota)
+  }, error = function(err) {
+    bvar_result = invalid_result(model="bvar_minnesota", h_steps)
+    cat(paste("Run: ", run, "\t", "M: ", M, "\t","BVAR -> ERROR!"))
+  })
+  
+  arx_result = tryCatch({
+    ## ARX with OLS ##
+    start_time = proc.time()
+    msfe_arx_ols <- arx_ols(T, M, p, train, y_dgp, x_dgp, h_steps)
+    msd_arx_ols <- arx_ols_msd(T, M, p, y_dgp, x_dgp, coeff)
+    elapsed_time = round((proc.time() - start_time)[3],4)
+    cat(paste("Run: ", run, "\t", "M: ", M, "\t","AR-X -> DONE! | elapsed: ", elapsed_time, ' seconds | MSFE: ',  round(mean(unlist(msfe_arx_ols$msfe)),4)," | ALPL: ", round(mean(unlist(msfe_arx_ols$alpl))), " | MSD: ", round(msd_arx_ols,6), "\n", sep=""))
+    
+    arx_result = list("msfe_arx_ols" = msfe_arx_ols,
+                      "msd_arx_ols" = msd_arx_ols)
+  }, error = function(err) {
+    arx_result = invalid_result(model="arx_ols", h_steps)
+    cat(paste("Run: ", run, "\t", "M: ", M, "\t","AR-X -> ERROR!"))
+  })
+  
+  tvp_bar_result = tryCatch({
+    ## TVP-B-AR with Minnesota prior ##
+    start_time = proc.time()
+    msfe_tvp_bar <- tvp_bar(T, M, p, train, y_dgp, x_dgp, mcmc_iter, h_steps)
+    msd_tvp_bar <- tvp_bar_msd(T, M, p, y_dgp, x_dgp, mcmc_iter, coeff)
+    elapsed_time = round((proc.time() - start_time)[3],4)
+    cat(paste("Run: ", run, "\t", "M: ", M, "\t","TVP-B-AR -> DONE! | elapsed: ", elapsed_time, ' seconds | MSFE: ',  round(mean(unlist(msfe_tvp_bar$msfe)),4)," | ALPL: ", round(mean(unlist(msfe_tvp_bar$alpl))), " | MSD: ", round(msd_tvp_bar,6), "\n", sep=""))
+    
+    tvp_bar_result = list("msfe_tvp_bar" = msfe_tvp_bar,
+                          "msd_tvp_bar" = msd_tvp_bar)
+  }, error = function(err) {
+    tvp_bar_result = invalid_result(model="tvp_bar", h_steps)
+    cat(paste("Run: ", run, "\t", "M: ", M, "\t","TVP-B-AR -> ERROR!"))  
+  })
+  
+  
+  result_list <- list("msfe_var_ols" = var_result$msfe_var_ols$msfe,
+                      "alpl_var_ols" = var_result$msfe_var_ols$alpl,
+                      "msfe_bvar_minnesota" = bvar_result$msfe_bvar_minnesota$msfe,
+                      "alpl_bvar_minnesota" = bvar_result$msfe_bvar_minnesota$alpl,
+                      "msfe_arx_ols" = arx_result$msfe_arx_ols$msfe,
+                      "alpl_arx_ols" = arx_result$msfe_arx_ols$alpl,
+                      "msfe_tvp_bar" = tvp_bar_result$msfe_tvp_bar$msfe,
+                      "alpl_tvp_bar" = tvp_bar_result$result$msfe_tvp_bar$alpl,
+                      "msd_var_ols" = var_result$msd_var_ols,
+                      "msd_bvar_minnesota" = bvar_result$msd_bvar_minnesota,
+                      "msd_arx_ols" = arx_result$msd_arx_ols,
+                      "msd_tvp_bar" = tvp_bar_result$msd_tvp_bar)
   
   return(result_list)
 
@@ -505,12 +558,16 @@ simulation_run <- function(run, M, mcmc_iter) {
 
 cl_args <- commandArgs(trailingOnly = TRUE)
 set.seed(12345) # For reproducability
-m_list <- c(2,5,10)
-mcmc_iter_list <- c(2000,1500,500)
-n_iterations <- as.numeric(cl_args[1]) # Default: 200 
+m_list <- c(2,5)
+mcmc_iter_list <- c(2000,1000,500)
+n_iterations <- as.numeric(cl_args[1]) # Default in paper is 200 
 iterations <- seq(n_iterations)
 p <- 1
+T = 100
+sparsity = 0.05
 
 for (m in m_list) {
   results <- mclapply(iterations, simulation_run, M = m, mcmc_iter = mcmc_iter_list[which(m_list == m)], mc.cores = detectCores())
+  file_string <- paste(paste("statistics", m, n_iterations, p, T, sparsity, "R", sep="_"), ".RData", sep="")
+  save(results, file=file_string) 
 }

@@ -80,6 +80,15 @@ class TVPVARModel:
             self.tau_lasso = np.ones((self.T_train, self.k))
             self.lambda_param = self.prior_parameters['lambda_param']
 
+        elif prior == 'lasso_alternative':
+            if prior_default:
+                self.prior_parameters = {'a0_lasso': 1, 'b0_lasso': 1}
+
+            self.tau_lasso = np.ones((self.T_train, self.k))
+            self.a0_lasso = np.ones(self.T)*self.prior_parameters["a0_lasso"]
+            self.b0_lasso = np.ones(self.T) * self.prior_parameters["b0_lasso"]
+            self.lambda_lasso = np.ones(self.T)
+
         self.initialized_priors = True
 
     def set_volatility(self):
@@ -186,6 +195,9 @@ class TVPVARModel:
                 elif self.prior == 'lasso':
                     Qtilde[:, :, t] = np.diag(1 / (q_t[t, :] + self.tau_lasso[t, :]))
                     Ftilde[:, :, t] = np.multiply(Qtilde[:, :, t], np.diag(q_t[t, :]))
+                elif self.prior == 'lasso_alternative':
+                    Qtilde[:, :, t] = np.diag(1 / (q_t[t, :] + self.tau_lasso[t, :]))
+                    Ftilde[:, :, t] = np.multiply(Qtilde[:, :, t], np.diag(q_t[t, :]))
 
                 if t == 0:
                     mtt1[:, t] = Ftilde[:, :, t] @ m0
@@ -268,6 +280,10 @@ class TVPVARModel:
 
                 elif self.prior == 'lasso':
                     self.tau_lasso[t, :] = 1 / np.sqrt((self.lambda_param ** 2 / self.mt1t[:, t] ** 2))
+
+                elif self.prior == 'lasso_alternative':
+                    self.lambda_lasso[t] = (self.k + self.a0_lasso[t])/(np.sum(self.tau_lasso[t,:])/2+self.b0_lasso[t])
+                    self.tau_lasso[t, :] = 1 / np.sqrt((self.lambda_lasso[t] ** 2 / self.mt1t[:, t] ** 2))
 
             if (self.prior == 'horseshoe') & (print_status):
                 print(f'lambda: {self.lambda_t_horseshoe.mean()},'
@@ -494,7 +510,7 @@ class TVPVARModel:
         return self.insample_msfe_calculated
 
 
-def tvp_ar_contemp(T, M, p, train, X, y, prior='lasso', total_h=8, iterations=50, print_status=False):
+def tvp_ar_contemp(T, M, p, train, X, y, prior='lasso', total_h=8, iterations=50, print_status=False, prior_parameters=None):
     # Contemperous values added
 
     mt1t_mean_set = []
@@ -507,7 +523,11 @@ def tvp_ar_contemp(T, M, p, train, X, y, prior='lasso', total_h=8, iterations=50
                              np.expand_dims(y[m, :].T, 1), p, train, False, homoskedastic=False)
         tvp_ar.k = M + M - 1
         tvp_ar.iterations = iterations
-        tvp_ar.initialize_priors(prior=prior)
+
+        if prior_parameters == None:
+            tvp_ar.initialize_priors(prior=prior)
+        else:
+            tvp_ar.initialize_priors(prior=prior, prior_parameters=prior_parameters)
         mt1t, st1t = tvp_ar.train(print_status=print_status)
         mt1t_mean_set.append(mt1t)
         sigma_set.append(tvp_ar.sigma_t)
@@ -525,7 +545,7 @@ def tvp_ar_contemp(T, M, p, train, X, y, prior='lasso', total_h=8, iterations=50
     mt1t_coeff = mt1t_full.reshape((M, M + M - 1, train - 1))[:, :M, :].reshape(M ** 2, train - 1)
     sigma = np.block(sigma_set)
 
-    return msfe, alpl, mt1t_full, mt1t_coeff, sigma
+    return msfe, alpl, mt1t_full, mt1t_coeff, sigma, tvp_ar
 
 
 def tvp_ar_non_contemp(T, M, p, train, X, y, prior='lasso', total_h=8, iterations=50, print_status=False):

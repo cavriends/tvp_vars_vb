@@ -63,6 +63,52 @@ def generate_dgp_tvp_var(M, T, p, diagonal_coefficient, cross_coefficient, sigma
 
     return y, A_1_vec
 
+
+def generate_dgp_tvp_var_heteroskedastic(M, T, p, diagonal_coefficient, cross_coefficient, sigma_states, sigma_observation, covariance,
+                     binomial_prob, sigma_obs_cov, sigma_states_cov):
+    y = np.zeros((M, T))
+    A_1_vec = np.zeros((M * (M * p), T))
+    selection_mask = np.random.binomial(1, binomial_prob, M * (M * p)) == 1
+    selection_mask[np.diag_indices(M)[0]] = True
+
+    sigma_states_vec = np.ones((T,M**2))*sigma_states
+    sigma_observation_vec = np.ones((T,M))*sigma_observation
+    sigma_observation_cross_vec = np.ones((T,((M**2)-M)//2))*sigma_observation
+
+    for t in range(T):
+        triangular_zeros = np.zeros((M,M))
+        if t == 0:
+            A_1_vec[selection_mask, t] = cross_coefficient
+            np.fill_diagonal(A_1_vec[:, t].reshape(M, (M * p)), np.repeat(diagonal_coefficient, M))
+            y[:, t] = np.ones(M)
+        else:
+            sigma_states_vec[t] = np.abs(sigma_states_vec[t-1] + multivariate_normal.rvs(mean=np.zeros(M**2),cov=sigma_states_cov*np.eye(M**2)))
+            sigma_observation_vec[t] = np.abs(sigma_observation_vec[t-1] + multivariate_normal.rvs(mean=np.zeros(M),cov=sigma_obs_cov*np.eye(M)))
+            sigma_observation_cross_vec[t] = sigma_observation_cross_vec[t-1] + multivariate_normal.rvs(mean=np.zeros(((M**2)-M)//2), cov=sigma_obs_cov*np.eye(((M**2)-M)//2))
+
+            sigma_states_vec[t,~selection_mask] = 0
+            A_1_vec[:, t] = A_1_vec[:, t - 1] + multivariate_normal.rvs(mean=np.zeros(M ** 2),
+                                                                        cov=np.diag(sigma_states_vec[t]))
+
+            ## Eigen values check
+            eigen_values = np.linalg.eig(A_1_vec[:, t].reshape(M, M))[0]
+            stationary = any(eigen_values < 1)
+            if stationary == False:
+                print(f'Failed eigen values requirement < 1 (explosive process)')
+                print(f'Iteration: {t}')
+                break
+
+            Z = np.zeros((M, M ** 2))
+            for m in range(M):
+                Z[m, m * M:(m * M + M)] = y[:, t - 1]
+
+            triangular_zeros[np.tril_indices(M,-1)] = sigma_observation_cross_vec[t]
+            triangular_zeros[np.triu_indices(M,1)]  = sigma_observation_cross_vec[t]
+            y[:, t] = Z @ A_1_vec[:, t] + multivariate_normal.rvs(mean=np.zeros(M), cov=(
+                        np.diag(sigma_observation_vec[t]) + triangular_zeros))
+
+    return y, A_1_vec, sigma_states_vec, sigma_observation_vec, sigma_observation_cross_vec
+
 def generate_matrices(T, M, p, y):
 
     series = y
