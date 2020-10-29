@@ -5,6 +5,7 @@ setwd('/Users/cavriends/Dropbox/ESE/MSc Econometrics/Thesis/Bayesian VARs/Code/J
 # install.packages('BVAR')
 # install.packages("MARX")
 # install.packages('shrinkTVP')
+#install.packages("coda")
 
 library(vars) 
 library(BVAR)
@@ -12,6 +13,7 @@ library(MARX)
 library(shrinkTVP)
 library(parallel)
 library(mvtnorm)
+library(coda)
 
 #### FED DATA ####
 
@@ -348,7 +350,7 @@ tvp_bar <- function(T, M, p, train, y, x, mcmc_iter, h_steps, print_status=FALSE
                            niter=mcmc_iter, 
                            nburn=floor(mcmc_iter/2),
                            sv=FALSE,
-                           display_progress=TRUE)
+                           display_progress=FALSE)
       
       beta_mean <- unlist(lapply(lapply(tvp_fit$beta, colMeans), tail, 1))
       
@@ -464,7 +466,7 @@ invalid_result <- function(model, h_steps=8) {
 
 simulation_run <- function(run, M, mcmc_iter, sparsity=0.05) {
   
-  T = 100
+  T = 200
   train <- T+1-50
   number_of_predictions <- T - train
   h_steps <- 8
@@ -563,7 +565,7 @@ mcmc_iter_list <- c(2000,1000,500)
 n_iterations <- as.numeric(cl_args[1]) # Default in paper is 200 
 iterations <- seq(n_iterations)
 p <- 1
-T = 100
+T = 200
 sparsity = 0.05
 
 for (m in m_list) {
