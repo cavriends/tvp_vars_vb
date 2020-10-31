@@ -464,7 +464,7 @@ invalid_result <- function(model, h_steps=8) {
 
 #### SIMULATION (it is embarrassingly parallel)  ####
 
-simulation_run <- function(run, M, mcmc_iter, sparsity=0.05) {
+simulation_run <- function(run, M, mcmc_iter, sparsity=0.1) {
   
   T = 200
   train <- T+1-50
@@ -566,7 +566,7 @@ n_iterations <- as.numeric(cl_args[1]) # Default in paper is 200
 iterations <- seq(n_iterations)
 p <- 1
 T = 200
-sparsity = 0.05
+sparsity = 0.1
 
 for (m in m_list) {
   results <- mclapply(iterations, simulation_run, M = m, mcmc_iter = mcmc_iter_list[which(m_list == m)], mc.cores = detectCores())
