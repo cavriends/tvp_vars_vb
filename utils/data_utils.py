@@ -69,7 +69,8 @@ def generate_dgp_tvp_var_heteroskedastic(M, T, p, diagonal_coefficient, cross_co
     y = np.zeros((M, T))
     A_1_vec = np.zeros((M * (M * p), T))
     selection_mask = np.random.binomial(1, binomial_prob, M * (M * p)) == 1
-    selection_mask[np.diag_indices(M)[0]] = True
+    selection_mask.reshape(M, M)[np.diag_indices(M)] = True
+    #selection_mask[np.diag_indices(M)[0]] = True
 
     sigma_states_vec = np.ones((T,M**2))*sigma_states
     sigma_observation_vec = np.ones((T,M))*sigma_observation
