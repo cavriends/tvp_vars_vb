@@ -42,7 +42,8 @@ class TVPVARModel:
 
         if self.prior == 'svss':
             if prior_default:
-                self.prior_parameters = {'g0': 1e-2, 'h0': 1e-2, 'pi0': 0.5}
+                # self.prior_parameters = {'g0': 1e-2, 'h0': 1e-2, 'pi0': 0.5}
+                self.prior_parameters = {'g0': 1, 'h0': 12, 'pi0': 0.5}
 
             self.gt = np.ones((self.T,self.k))
             self.g0 = self.prior_parameters['g0']
@@ -64,7 +65,8 @@ class TVPVARModel:
 
         elif self.prior == 'horseshoe':
             if prior_default:
-                self.prior_parameters = {'a0': 1/2, 'b0': 1}
+                # self.prior_parameters = {'a0': 1/2, 'b0': 1}
+                self.prior_parameters = {'a0': 10, 'b0': 10}
 
             self.a0_horseshoe = self.prior_parameters['a0']
             self.b0_horseshoe = self.prior_parameters['b0']
@@ -129,7 +131,7 @@ class TVPVARModel:
         ct = np.ones((self.T_train, self.k))
         dt = np.ones((self.T_train, self.k))
         d0 = 1
-        c0 = 25
+        c0 = 100
 
         self.D = np.zeros((self.T_train, self.k, self.k))
         self.tv_probs = np.ones((self.T_train, self.k))
@@ -150,7 +152,7 @@ class TVPVARModel:
         self.F_old = 1
         self.KL = np.ones(self.iterations)*12345
         offset = 0.0015
-        delta = 0.9
+        delta = 0.8
 
         elapsed_time = 0
         start_time = 0

@@ -465,7 +465,7 @@ invalid_result <- function(model, h_steps=8) {
 
 simulation_run <- function(run, M, mcmc_iter, sparsity=0.40) {
   
-  T = 200
+  T = 100
   train <- T+1-25
   number_of_predictions <- T - train
   h_steps <- 8
@@ -558,12 +558,12 @@ simulation_run <- function(run, M, mcmc_iter, sparsity=0.40) {
 
 cl_args <- commandArgs(trailingOnly = TRUE)
 set.seed(12345) # For reproducability
-m_list <- c(3,7)
-mcmc_iter_list <- c(2000,1000,500)
+m_list <- c(7)
+mcmc_iter_list <- c(2000,1500,500)
 n_iterations <- 16 #Number of cores on an Intel i9-9880H
 iterations <- seq(n_iterations)
 p <- 1
-T = 200
+T = 100
 sparsity = 0.40
 
 for (m in m_list) {
