@@ -277,7 +277,7 @@ class TVPVARModel:
                     #                      0.5 * (self.mt1t[:, t] ** 2 + np.abs(np.diag(self.St1t[:, :, t])))
                     #                      / self.lambda_t_horseshoe[t])/(self.a0_horseshoe - 0.5)
 
-                    self.v[t,:] = (self.b0_horseshoe + (1/(self.phi_t[t,:])**2))/(self.a0_horseshoe - 1)
+                    self.v[t,:] = (self.b0_horseshoe + (1/(self.phi_t[t,:])**2 + np.abs(np.diag(self.St1t[:, :, t]))))/(self.a0_horseshoe - 1)
                     self.delta[t] = (self.b0_horseshoe + (1/self.lambda_t_horseshoe[t]))/(self.a0_horseshoe - 1)
 
                 elif self.prior == 'lasso':
