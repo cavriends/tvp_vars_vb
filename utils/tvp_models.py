@@ -19,7 +19,7 @@ class TVPVARModel:
         self.p = p
         self.iterations = iterations
         self.train_index = train_index
-        self.T_train = train_index - self.p
+        self.T_train = train_index
         self.initialized_priors = False
         self.initialized_volatility = False
         self.prior_parameters = None
@@ -376,7 +376,7 @@ class TVPVARModel:
         self.initialized_priors = False
         self.initialized_volatility = False
 
-        return self.mt1t, self.St1t
+        return self.mt1t, self.St1t, self.sigma_t
 
     def klgamma(self, pa, pb, qa, qb):
 
@@ -519,9 +519,13 @@ def tvp_ar_contemp(T, M, p, train, X, y, prior='lasso', total_h=8, iterations=50
     sigma_set = []
     msfe_set = []
     alpl_set = []
+    y_pred_complete = np.zeros((M,T-train+1,1,total_h))
+
+    # tvp_ar = TVPVARModel(np.expand_dims(X[:, m, (m * (M + M - 1)):(m * (M + M - 1) + (M + M - 1))], 1),
+    #                      np.expand_dims(y[m, :].T, 1), p, train, False, homoskedastic=False)
 
     for m in range(M):
-        tvp_ar = TVPVARModel(np.expand_dims(X[:, m, (m * (M + M - 1)):(m * (M + M - 1) + (M + M - 1))], 1),
+        tvp_ar = TVPVARModel(np.expand_dims(X[:, m], 1),
                              np.expand_dims(y[m, :].T, 1), p, train, False, homoskedastic=False)
         tvp_ar.k = M + M - 1
         tvp_ar.iterations = iterations
@@ -534,20 +538,19 @@ def tvp_ar_contemp(T, M, p, train, X, y, prior='lasso', total_h=8, iterations=50
         mt1t_mean_set.append(mt1t)
         sigma_set.append(tvp_ar.sigma_t)
 
-        msfe, alpl = tvp_ar.calculate_metrics(total_h, constant=False, print_status=print_status)
+        msfe, alpl= tvp_ar.calculate_metrics(total_h, constant=False, print_status=print_status)
 
         msfe_set.append(msfe)
         alpl_set.append(alpl)
 
-    #         print(f'Variable: {m+1} | MSFE: {msfe.mean()}')
-
     msfe = np.block(msfe_set).mean(1)
+    complete_msfe = np.block(msfe_set)
     alpl = np.block(alpl_set).reshape(total_h, M).mean(1)
     mt1t_full = np.vstack(mt1t_mean_set)
     mt1t_coeff = mt1t_full.reshape((M, M + M - 1, train - 1))[:, :M, :].reshape(M ** 2, train - 1)
     sigma = np.block(sigma_set)
 
-    return msfe, alpl, mt1t_full, mt1t_coeff, sigma, tvp_ar
+    return msfe, alpl, mt1t_full, mt1t_coeff, sigma, complete_msfe
 
 
 def tvp_ar_non_contemp(T, M, p, train, X, y, prior='lasso', total_h=8, iterations=50, print_status=False):
@@ -566,7 +569,7 @@ def tvp_ar_non_contemp(T, M, p, train, X, y, prior='lasso', total_h=8, iteration
         mt1t_mean_set.append(mt1t)
         sigma_set.append(tvp_ar.sigma_t)
 
-        msfe, alpl = tvp_ar.calculate_metrics(total_h, constant=False, print_status=print_status)
+        msfe, alpl, sigma_t = tvp_ar.calculate_metrics(total_h, constant=False, print_status=print_status)
 
         msfe_set.append(msfe)
         alpl_set.append(alpl)
@@ -579,3 +582,171 @@ def tvp_ar_non_contemp(T, M, p, train, X, y, prior='lasso', total_h=8, iteration
     sigma = np.block(sigma_set)
 
     return msfe, alpl, mt1t, sigma
+
+class tvp_ar_contemp_decomposition:
+
+    def __init__(self, T, M, p, train, X, y, prior='lasso', total_h=8, iterations=50, print_status=False, prior_parameters=None):
+
+        self.T = T
+        self.M = M
+        self.p = p
+        self.train = train
+        self.X = X
+        self.y = y
+        self.prior = prior
+        self.total_h = total_h
+        self.iterations = iterations
+        self.print_status = print_status
+        self.prior_parameters = prior_parameters
+
+    def estimate(self, train):
+
+        # Contemperous values added
+        mt1t_set = []
+        H = np.zeros((train, self.M))
+
+        for m in range(self.M):
+            tvp_ar = TVPVARModel(np.expand_dims(self.X[:train, m], 1),
+                                 np.expand_dims(self.y[m, :train].T, 1), self.p, train, False, homoskedastic=False)
+            tvp_ar.k = self.M * 2
+            tvp_ar.iterations = self.iterations
+
+            if self.prior_parameters == None:
+                tvp_ar.initialize_priors(prior=self.prior)
+            else:
+                tvp_ar.initialize_priors(prior=self.prior, prior_parameters=self.prior_parameters)
+
+            mt1t, st1t, sigma_t = tvp_ar.train(print_status=self.print_status)
+
+            mt1t_set.append(mt1t)
+            H[:, m] = np.squeeze(sigma_t)
+
+        # Reconstruct the reduced form coefficients
+        U_elements = np.zeros(((self.M ** 2 - self.M) // 2, train))
+        self.structural_coefficients = np.zeros((self.M, self.M + 1, train))
+        self.reduced_coefficients = np.zeros((self.M, self.M + 1, train))
+        U = np.empty((self.M, self.M, train))
+        self.reduced_covariance = np.zeros((self.M, self.M, train))
+
+        for t in range(train):
+            collection_list = []
+            coefficent_matrix = np.zeros((self.M, self.M + 1))
+
+            for m in range(self.M):
+
+                coefficent_matrix[m, :] = mt1t_set[m][:(self.M + 1), t]
+
+                if m != 0:
+                    collection_list.append(mt1t_set[m][(self.M + 1):(self.M + 1) + m, t])
+
+            U_elements[:, t] = np.block(collection_list)
+            self.structural_coefficients[:, :, t] = coefficent_matrix
+
+        for t in range(train):
+            id_matrix = np.eye(self.M)
+            indices_tril = np.tril_indices(self.M, -1)
+            id_matrix[indices_tril] = -U_elements[:, t]
+            Sigma = np.diag(H[t, :])
+            U_inv = np.linalg.inv(id_matrix)
+            U[:, :, t] = U_inv
+            self.reduced_coefficients[:, :, t] = U_inv @ self.structural_coefficients[:, :, t]
+            self.reduced_covariance[:, :, t] = U_inv @ Sigma @ U_inv.T
+
+        # Make in-sample predictions
+        self.y_insample_pred = np.empty((self.M, train))
+
+        for t in range(train):
+            self.y_insample_pred[:, t] = self.reduced_coefficients[:, :, t] @ self.X[t, 0, :(self.M + 1)]
+
+    def calculate_forecasts(self, train):
+
+        number_of_predictions = self.T - train
+
+        #Make an iterated out-of-sample forecast
+        self.y_pred = np.zeros((number_of_predictions,self.M,self.total_h))
+
+        for idx, t in enumerate(range(train, self.T)):
+
+            for h in range(self.total_h):
+
+                if h == 0:
+                    self.y_pred[idx, :, h] = self.reduced_coefficients[:, :, -1] @ np.hstack(
+                        (np.ones(1), self.y[:, t]))
+
+                else:
+                    self.y_pred[idx, :, h] = self.reduced_coefficients[:, :, -1] @ np.hstack((np.ones(1), self.y_pred[idx, :, h-1]))
+
+        return self.y_pred, self.reduced_coefficients, self.reduced_covariance
+
+
+    def calculate_metrics(self, train):
+
+        number_of_predictions = self.T - train
+        msfe_tvp = np.zeros((self.total_h, self.M))
+        alpl = np.zeros(self.total_h)
+
+        self.calculate_forecasts(train)
+
+        for h in range(self.total_h):
+
+            if h < number_of_predictions:
+                lpl = np.zeros(number_of_predictions - h)
+
+                if h == 0:
+                    y_true_h = self.y.T[train:]
+                    y_pred_h = self.y_pred[:, :, 0]
+
+                    msfe_tvp[h] = np.mean((y_pred_h - y_true_h) ** 2, 0)
+                    for t in range(number_of_predictions):
+                        try:
+                            lpl[t] = np.log(multivariate_normal.pdf(y_true_h[t], y_pred_h[t], cov=np.cov(y_pred_h.T),
+                                                                allow_singular=True) + 1e-16)
+                        except:
+                            if self.print_status:
+                                print("Covariance might be singular")
+
+                    alpl[h] = lpl.mean()
+
+                else:
+                    y_true_h = self.y.T[train + h:]
+                    y_pred_h = self.y_pred[:-h, :, h]
+
+                    if y_true_h.shape[0] == 1:
+                        covariance = np.cov(y_pred_h)
+                    else:
+                        covariance = np.cov(y_pred_h.T)
+
+                    msfe_tvp[h] = np.mean((y_pred_h - y_true_h) ** 2, 0)
+                    for t in range(number_of_predictions - h):
+                        try:
+                            lpl[t] = np.log(multivariate_normal.pdf(y_true_h[t], y_pred_h[t], cov=covariance,
+                                                                    allow_singular=True) + 1e-16)
+                        except:
+                            if self.print_status:
+                                print(f'Covariance might be singular, in this case it is due to the last observation')
+
+                    alpl[h] = lpl.mean()
+
+        return msfe_tvp, alpl
+
+    def result(self):
+
+        msfe_set = []
+        alpl_set = []
+
+        for train_index in range(self.train, self.T):
+            self.estimate(train_index)
+            msfe, alpl = self.calculate_metrics(train_index)
+            msfe_set.append(msfe)
+            alpl_set.append(alpl)
+
+        alpl = np.block(alpl_set).reshape(self.T-self.train,self.total_h).mean(0)
+        complete_alpl = np.block(alpl_set).reshape(self.T-self.train,self.total_h)
+        complete_msfe = np.block(msfe_set)
+        msfe = np.block(msfe_set).mean(1)
+        coeff = self.reduced_coefficients
+        sigma = self.reduced_covariance
+
+
+        return msfe, alpl, coeff, sigma, complete_msfe, complete_alpl
+

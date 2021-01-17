@@ -154,7 +154,7 @@ def generate_matrices(T, M, p, y):
     return y_own, X_own
 
 
-def generate_contemp_matrices(T, M, p, y):
+def generate_contemp_matrices(T, M, p, y, constant=True):
     # Contemperous values added
 
     series = y
@@ -165,6 +165,8 @@ def generate_contemp_matrices(T, M, p, y):
 
     lagged_y = np.ones((lagged_T, M * p))
     k = M * (M * p) + M * (M - 1)
+    contemperous_X_const = np.zeros((lagged_T,M,M*2))
+    contemperous_X = np.zeros((lagged_T,M,M*2-1))
     variable_list = np.arange(M)
     position_counter = 0
     total_lags = M * p + (M - 1)
@@ -197,6 +199,21 @@ def generate_contemp_matrices(T, M, p, y):
 
     for s in series:
         y_series.append(s[p:])
+
+    if constant:
+        for t in range(lagged_T):
+            for m in range(M):
+                contemperous_X_const[t, m] = np.hstack(
+                    (np.ones((1,1)), np.expand_dims(X[t, m, (m * (M + M - 1)):(m * (M + M - 1) + (M + M - 1))], 1).T))
+
+        X = contemperous_X_const
+
+    else:
+        for t in range(lagged_T):
+            for m in range(M):
+                contemperous_X[t, m] = np.expand_dims(X[t, m, (m * (M + M - 1)):(m * (M + M - 1) + (M + M - 1))], 1).T
+
+        X = contemperous_X
 
     y_own = np.array(y_series)
     X_own = X

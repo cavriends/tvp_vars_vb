@@ -478,36 +478,36 @@ simulation_run <- function(run, M, mcmc_iter, sparsity=0.40) {
   # Minimal error handling is necessary due to possible initialization failures for priors in the Bayesian models. OLS based models shouldn't error out.
   # However, as a precaution and in the name of consistency, error handling is also set up for these models.
   
-  # var_result <- tryCatch({
-  #   ## VAR-OLS ##
-  #   start_time = proc.time()
-  #   msfe_var_ols <- var_ols(T, M, p, train, y_dgp, h_steps)
-  #   msd_var_ols <- var_ols_msd(T, M, p, y_dgp, coeff)
-  #   elapsed_time = round((proc.time() - start_time)[3],4)
-  #   cat(paste("Run: ", run, "\t", "M: ", M, "\t","VAR -> DONE! | elapsed: ", elapsed_time, ' seconds | MSFE: ',  round(mean(unlist(msfe_var_ols$msfe)),4)," | ALPL: ", round(mean(unlist(msfe_var_ols$alpl))), " | MSD: ", round(msd_var_ols,6), "\n", sep=""))
-  #   
-  #   var_result = list("msfe_var_ols" = msfe_var_ols,
-  #                     "msd_var_ols" = msd_var_ols)
-  #   
-  # }, error = function(err) {
-  #   var_result = invalid_result(model="var_ols", h_steps)
-  #   cat(paste("Run: ", run, "\t", "M: ", M, "\t","VAR -> ERROR!" ))
-  # })
-  # 
-  # bvar_result = tryCatch({
-  #   ## B-VAR with Minnesota prior ##
-  #   start_time = proc.time()
-  #   msfe_bvar_minnesota <- bvar_minnesota(T, M, p, train, y_dgp, x_dgp, mcmc_iter, h_steps)
-  #   msd_bvar_minnesota <- bvar_minnesota_msd(T, M, p, y_dgp, mcmc_iter, coeff)
-  #   elapsed_time = round((proc.time() - start_time)[3],4)
-  #   cat(paste("Run: ", run, "\t", "M: ", M, "\t","BVAR -> DONE! | elapsed: ", elapsed_time, ' seconds | MSFE: ',  round(mean(unlist(msfe_bvar_minnesota$msfe)),4), " | ALPL: ", round(mean(unlist(msfe_bvar_minnesota$alpl)))," | MSD: ", round(msd_bvar_minnesota,6), "\n", sep=""))
-  # 
-  #   bvar_result = list("msfe_bvar_minnesota" = msfe_bvar_minnesota,
-  #                      "msd_bvar_minnesota" = msd_bvar_minnesota)
-  # }, error = function(err) {
-  #   bvar_result = invalid_result(model="bvar_minnesota", h_steps)
-  #   cat(paste("Run: ", run, "\t", "M: ", M, "\t","BVAR -> ERROR!"))
-  # })
+  var_result <- tryCatch({
+    ## VAR-OLS ##
+    start_time = proc.time()
+    msfe_var_ols <- var_ols(T, M, p, train, y_dgp, h_steps)
+    msd_var_ols <- var_ols_msd(T, M, p, y_dgp, coeff)
+    elapsed_time = round((proc.time() - start_time)[3],4)
+    cat(paste("Run: ", run, "\t", "M: ", M, "\t","VAR -> DONE! | elapsed: ", elapsed_time, ' seconds | MSFE: ',  round(mean(unlist(msfe_var_ols$msfe)),4)," | ALPL: ", round(mean(unlist(msfe_var_ols$alpl))), " | MSD: ", round(msd_var_ols,6), "\n", sep=""))
+
+    var_result = list("msfe_var_ols" = msfe_var_ols,
+                      "msd_var_ols" = msd_var_ols)
+
+  }, error = function(err) {
+    var_result = invalid_result(model="var_ols", h_steps)
+    cat(paste("Run: ", run, "\t", "M: ", M, "\t","VAR -> ERROR!" ))
+  })
+
+  bvar_result = tryCatch({
+    ## B-VAR with Minnesota prior ##
+    start_time = proc.time()
+    msfe_bvar_minnesota <- bvar_minnesota(T, M, p, train, y_dgp, x_dgp, mcmc_iter, h_steps)
+    msd_bvar_minnesota <- bvar_minnesota_msd(T, M, p, y_dgp, mcmc_iter, coeff)
+    elapsed_time = round((proc.time() - start_time)[3],4)
+    cat(paste("Run: ", run, "\t", "M: ", M, "\t","BVAR -> DONE! | elapsed: ", elapsed_time, ' seconds | MSFE: ',  round(mean(unlist(msfe_bvar_minnesota$msfe)),4), " | ALPL: ", round(mean(unlist(msfe_bvar_minnesota$alpl)))," | MSD: ", round(msd_bvar_minnesota,6), "\n", sep=""))
+
+    bvar_result = list("msfe_bvar_minnesota" = msfe_bvar_minnesota,
+                       "msd_bvar_minnesota" = msd_bvar_minnesota)
+  }, error = function(err) {
+    bvar_result = invalid_result(model="bvar_minnesota", h_steps)
+    cat(paste("Run: ", run, "\t", "M: ", M, "\t","BVAR -> ERROR!"))
+  })
 
   # arx_result = tryCatch({
   #   ## ARX with OLS ##
@@ -539,18 +539,18 @@ simulation_run <- function(run, M, mcmc_iter, sparsity=0.40) {
     cat(paste("Run: ", run, "\t", "M: ", M, "\t","TVP-B-AR -> ERROR!"))
   })
   
-  # result_list <- list("msfe_var_ols" = var_result$msfe_var_ols$msfe,
-  #                     "alpl_var_ols" = var_result$msfe_var_ols$alpl,
-  #                     "msfe_bvar_minnesota" = bvar_result$msfe_bvar_minnesota$msfe,
-  #                     "alpl_bvar_minnesota" = bvar_result$msfe_bvar_minnesota$alpl,
-  #                     "msfe_arx_ols" = arx_result$msfe_arx_ols$msfe,
-  #                     "alpl_arx_ols" = arx_result$msfe_arx_ols$alpl,
-  #                     "msfe_tvp_bar" = tvp_bar_result$msfe_tvp_bar$msfe,
-  #                     "alpl_tvp_bar" = tvp_bar_result$result$msfe_tvp_bar$alpl,
-  #                     "msd_var_ols" = var_result$msd_var_ols,
-  #                     "msd_bvar_minnesota" = bvar_result$msd_bvar_minnesota,
-  #                     "msd_arx_ols" = arx_result$msd_arx_ols,
-  #                     "msd_tvp_bar" = tvp_bar_result$msd_tvp_bar)
+  result_list <- list("msfe_var_ols" = var_result$msfe_var_ols$msfe,
+                      "alpl_var_ols" = var_result$msfe_var_ols$alpl,
+                      "msfe_bvar_minnesota" = bvar_result$msfe_bvar_minnesota$msfe,
+                      "alpl_bvar_minnesota" = bvar_result$msfe_bvar_minnesota$alpl,
+                      "msfe_arx_ols" = arx_result$msfe_arx_ols$msfe,
+                      "alpl_arx_ols" = arx_result$msfe_arx_ols$alpl,
+                      "msfe_tvp_bar" = tvp_bar_result$msfe_tvp_bar$msfe,
+                      "alpl_tvp_bar" = tvp_bar_result$result$msfe_tvp_bar$alpl,
+                      "msd_var_ols" = var_result$msd_var_ols,
+                      "msd_bvar_minnesota" = bvar_result$msd_bvar_minnesota,
+                      "msd_arx_ols" = arx_result$msd_arx_ols,
+                      "msd_tvp_bar" = tvp_bar_result$msd_tvp_bar)
   
   return(0)
   
@@ -558,9 +558,9 @@ simulation_run <- function(run, M, mcmc_iter, sparsity=0.40) {
 
 cl_args <- commandArgs(trailingOnly = TRUE)
 set.seed(12345) # For reproducability
-m_list <- c(7)
-mcmc_iter_list <- c(2000,1500,500)
-n_iterations <- 16 #Number of cores on an Intel i9-9880H
+m_list <- c(3,7)
+mcmc_iter_list <- c(2000,1500)
+n_iterations <- 200 #Number of cores on an Intel i9-9880H
 iterations <- seq(n_iterations)
 p <- 1
 T = 100

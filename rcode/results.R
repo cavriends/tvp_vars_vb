@@ -10,6 +10,8 @@ msfe_tvp_bar = c()
 msd_var_ols = c()
 msd_bvar = c()
 msd_tvp_bar = c()
+alpl_var_ols = c()
+alpl_bvar = c()
 
 for (iteration_result in results) {
   
@@ -19,12 +21,14 @@ for (iteration_result in results) {
   msd_var_ols = rbind(msd_var_ols, unlist(iteration_result$msd_var_ols))
   msd_bvar= rbind(msd_bvar, unlist(iteration_result$msd_bvar_minnesota))
   msd_tvp_bar = rbind(msd_tvp_bar, unlist(iteration_result$msd_tvp_bar))
+  alpl_var_ols = rbind(alpl_var_ols, unlist(iteration_result$alpl_var_ols))
+  alpl_bvar = rbind(alpl_bvar, unlist(iteration_result$alpl_bvar_minnesota))
   
 }
 
 threshold_percentage = 2.5e-2
 threshold_high = round(n_iterations - threshold_percentage*n_iterations)
-threshold_low = round(n_iterations*threshold_percentage)
+threshold_low = 0 # round(n_iterations*threshold_percentage)
 
 #### VAR-OLS ####
 
@@ -33,6 +37,8 @@ indices_var_ols = sort(mean_var_ols, index.return = TRUE)$ix
 cleaned_mean_var_ols = rowMeans(msfe_var_ols[indices_var_ols[threshold_low:threshold_high],])
 msfe_h_step_var_ols = colMeans(msfe_var_ols[indices_var_ols[threshold_low:threshold_high],])
 overall_msfe_var_ols = mean(cleaned_mean_var_ols)
+cleand_msd_var_ols = mean(msd_var_ols[indices_var_ols[threshold_low:threshold_high]])
+cleaned_alpl_var_ols = mean(alpl_var_ols[indices_var_ols[threshold_low:threshold_high]])
 
 #### B-VAR with Minnesota prior ####
 
@@ -41,11 +47,44 @@ indices_bvar = sort(mean_bvar, index.return = TRUE)$ix
 cleaned_mean_bvar = rowMeans(msfe_bvar[indices_bvar[threshold_low:threshold_high],])
 msfe_h_step_bvar = colMeans(msfe_bvar[indices_bvar[threshold_low:threshold_high],])
 overall_msfe_bvar = mean(cleaned_mean_bvar)
+cleand_msd_bvar = mean(msd_bvar[indices_bvar[threshold_low:threshold_high]])
+cleaned_alpl_bvar = mean(alpl_bvar[indices_bvar[threshold_low:threshold_high]])
 
 #### TVP-B-AR with Minnesota prior ####
+
+threshold_percentage = 10e-2
+n_iterations = 200
+threshold_high = round(n_iterations - threshold_percentage*n_iterations)
+threshold_low = 0 # round(n_iterations*threshold_percentage)
+
+load("statistics_7_200_1_100_0.2_R_huber.RData")
+
+msfe_tvp_bar = c()
+msd_tvp_bar = c()
+alpl_tvp_bar = c()
+
+for (iteration_result in results) {
+  
+  msfe_tvp_bar = rbind(msfe_tvp_bar, unlist(iteration_result$msfe_tvp_bar))
+  msd_tvp_bar = rbind(msd_tvp_bar, unlist(iteration_result$msd_tvp_bar))
+  alpl_tvp_bar = rbind(alpl_tvp_bar, unlist(iteration_result$alpl_tvp_bar))
+  
+}
 
 mean_tvp = rowMeans(msfe_tvp_bar)
 indices_tvp = sort(mean_tvp, index.return = TRUE)$ix
 cleaned_mean_tvp = rowMeans(msfe_tvp_bar[indices_tvp[threshold_low:threshold_high],])
 msfe_h_step_tvp = colMeans(msfe_tvp_bar[indices_tvp[threshold_low:threshold_high],])
 overall_msfe_tvp = mean(cleaned_mean_tvp)
+cleand_msd_tvp = mean(msd_tvp_bar[indices_tvp[threshold_low:threshold_high]])
+cleaned_alpl_tvp = mean(alpl_tvp_bar[indices_tvp[threshold_low:threshold_high]])
+
+print(paste("ALPL: ", round(cleaned_alpl_tvp,2), sep=""))
+
+# print("VAR_OLS/TVP")
+# print(round(msfe_h_step_var_ols/msfe_h_step_tvp,3))
+# print(paste("VAR_OLS MSFE: ", round(mean(msfe_h_step_var_ols),3), sep=""))
+# print("BVAR/TVP")
+# print(round(msfe_h_step_bvar/msfe_h_step_tvp,3))
+# print(paste("BVAR MSFE: ", round(mean(msfe_h_step_bvar),3), sep=""))
+# print(paste("TVP-BAR MSFE: ", round(overall_msfe_tvp,3), sep=""))
