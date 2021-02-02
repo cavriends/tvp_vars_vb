@@ -1,6 +1,10 @@
 import numpy as np
 from scipy.stats import norm, multivariate_normal
 
+# These are extra utilities used in the thesis. They are mainly used for generating a DGP according to a TVP-VAR
+# specification and generating the matrices necessary in the VI-based TVP-BVAR models. The actual function that is used
+# for the DGP is generate_dgp_tvp_var_heteroskedastic().
+
 def transformation(series, code, transform=True, scale=1):
     transformed_series = np.zeros(series.shape[0])
 

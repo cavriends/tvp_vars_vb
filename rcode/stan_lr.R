@@ -1,6 +1,10 @@
 
 setwd('/Users/cavriends/Dropbox/ESE/MSc Econometrics/Thesis/Bayesian VARs/Code/Jupyter/rcode/')
 
+# The stan_lr.R script is an experiment that test VI versus MCMC on a simple OLS example. ADVI is still experimental in
+# Stan. This was to check the viability of ADVI in this thesis. However, as one will see, ADVI is quite off compared to
+# a standard MCMC (NUTS) implementation in Stan
+
 library(rstan)
 
 lr_model <- "./simple_lr.stan"

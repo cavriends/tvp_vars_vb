@@ -5,6 +5,14 @@ from scipy.stats import norm, multivariate_normal
 from scipy.special import psi, gammaln
 from datetime import datetime, timedelta
 
+
+# This class is the backbone of the VI-based TVP-BVAR. The final class that is the complete model as in the thesis is
+# the tvp_ar_non_contemp(). However, the complete estimation algorithm is in the TVPVARModel class. A few notes if one
+# uses this model. The 'lasso-alternative' prior is the actual Lasso prior used in the paper. Furthermore, my preference
+# is to keep some space between the lines to enhance readability, this is not in line with common practice, I know.
+# In addition, this code is a port to Python from the MATLAB code of Koop & Korobilis (2020)
+# "Bayesian dynamic variable selection in high dimensions".
+
 class TVPVARModel:
 
     def __init__(self, X, y, p, train_index, constant=True, iterations=100, homoskedastic=True):
@@ -33,6 +41,7 @@ class TVPVARModel:
 
     def initialize_priors(self, prior='svss', prior_parameters=None):
 
+        ## Initialize the priors, if no prior parameters are provided, fall back to default values.
         self.prior = prior
         prior_default = True
 
@@ -42,7 +51,6 @@ class TVPVARModel:
 
         if self.prior == 'svss':
             if prior_default:
-                # self.prior_parameters = {'g0': 1e-2, 'h0': 1e-2, 'pi0': 0.5}
                 self.prior_parameters = {'g0': 1, 'h0': 12, 'pi0': 0.5}
 
             self.gt = np.ones((self.T,self.k))
@@ -54,14 +62,6 @@ class TVPVARModel:
             self.tau_0 = self.cons * self.tau_1
             self.pi0 = self.prior_parameters['pi0'] * np.ones((self.T,1))
             self.tv_probs = np.ones((self.T,self.k))
-
-            ## Own implementation of SVSS
-            # if prior_default:
-            #     self.prior_parameters = {'tau_0': 0.1, 'tau_1': 10, 'pi0': 0.5}
-            #
-            # self.tau_0 = self.prior_parameters['tau_0']
-            # self.tau_1 = self.prior_parameters['tau_1']
-            # self.pi0 = self.prior_parameters['pi0']
 
         elif self.prior == 'horseshoe':
             if prior_default:
@@ -95,6 +95,8 @@ class TVPVARModel:
 
     def set_volatility(self):
 
+        ## Set the priors for the volatility (if homoskedastic or heteroskedastic)
+
         if self.homoskedastic:
             # sigma ~ Gamma(at, bt)
             self.at_h = np.ones(self.M)
@@ -113,7 +115,11 @@ class TVPVARModel:
 
     def train(self, threshold=1.0e-4, print_status=True, kl_bound=False):
 
+        ## The procedure to estimate a TVP-BVAR using VI with one of the three priors
+
         self.create_train()
+
+        ## Initialize priors if they're not initialized
 
         if (not self.initialized_priors) & (not self.prediction_switch):
             self.initialize_priors()
@@ -122,6 +128,8 @@ class TVPVARModel:
 
         if not self.initialized_volatility:
             self.set_volatility()
+
+        ## Set priors for beta_0 and q_t. Furthermore, initialize all necessary matrices and vectors
 
         # beta_0 ~ N(m0,S0)
         m0 = np.zeros(self.k)
@@ -154,11 +162,15 @@ class TVPVARModel:
         offset = 0.0015
         delta = 0.8
 
+        ## Initialize variables for timing, counting and convergence threshold
         elapsed_time = 0
         start_time = 0
         self.counter = 0
         mt1t_previous = np.ones((self.k, self.T_train))
         difference_parameters = np.zeros(self.iterations)
+
+        ## The VI algorithm is not converged until the difference between parameters is lower than the threshold
+        ## Or the iteration limit is reached
 
         while (self.counter < self.iterations) & (np.linalg.norm(self.mt1t - mt1t_previous) > threshold) & (np.abs(self.F_new - self.F_old) > threshold):
 
@@ -166,6 +178,7 @@ class TVPVARModel:
             mt1t_previous = self.mt1t
             start_iteration = time.time()
 
+            ## If print_status = True, the progress of the algorithm is printed
             if print_status:
                 if (self.counter % 10) == 0:
                     if self.counter != 0:
@@ -182,6 +195,8 @@ class TVPVARModel:
             self.mt1t = np.zeros((self.k, self.T_train))
             self.St1t = np.zeros((self.k, self.k, self.T_train))
 
+
+            ## The Kalman filter is initialized for the different priors.
             # Kalman filter
             # ==================| Update \beta_{t} using Kalman filter/smoother
             for t in range(self.T_train):
@@ -238,6 +253,7 @@ class TVPVARModel:
                 dt[t, :] = d0 + np.maximum(1e-10, np.diag(self.D[t,:,:]) / 2)
                 q_t[t, :] = ct[t, :] / dt[t, :]
 
+            ## The variational posteriors are updated for each of the priors, SVSS, Horseshoe or Lasso
             for t in range(self.T_train):
                 if self.prior == 'svss':
                     self.gt[t,:] = self.g0 + 0.5
@@ -251,31 +267,14 @@ class TVPVARModel:
                     self.tv_probs[t,:] = self.gamma
                     lambda_t[t,:] = 1/(((1 - self.gamma)**2)*self.tau_0[t,:].T + (self.gamma**2)*self.tau_1[t,:].T)
 
-                    ## Own implementation of SVSS
-                    # l_0 = norm.logpdf(self.mt1t[:, t] + np.diag(self.St1t[:, :, t]), np.zeros(self.k), self.tau_0 * np.ones(self.k))
-                    # l_1 = norm.logpdf(self.mt1t[:, t] + np.diag(self.St1t[:, :, t]) , np.zeros(self.k), self.tau_1 * np.ones(self.k))
-                    # gamma = 1 / (np.multiply(1 + (np.divide((1 - self.pi0), self.pi0)), np.exp(l_0 - l_1)))
-                    # self.pi0 = np.mean(gamma)
-                    # self.tv_probs[t, :] = gamma
-                    # lambda_t[t, :] = (1 / (self.tau_0 ** 2)) * np.ones(self.k)
-                    # lambda_t[t, gamma == 1] = (1 / (self.tau_1 ** 2))
-
                 elif self.prior == 'horseshoe':
                     self.lambda_t_horseshoe[t] = (1/self.delta[t] + 0.5 * (
                                                  (1 / self.phi_t[t, :]) @ (self.mt1t[:, t] ** 2 +
                                                   np.abs(np.diag(self.St1t[:, :, t]))))) / (self.k + 1/2 - 1)
 
-                    # self.lambda_t_horseshoe[t] = (1 / self.b0_horseshoe + 0.5 * (
-                    #                              (1 / self.phi_t[t, :]) @ (self.mt1t[:, t] ** 2 +
-                    #                                   np.abs(np.diag(self.St1t[:, :, t]))))) / (self.k + self.a0_horseshoe - 1)
-
                     self.phi_t[t, :] = (1/self.v[t,:] +
                                         (self.mt1t[:, t] ** 2 + np.abs(np.diag(self.St1t[:, :, t])))
                                         / 2*self.lambda_t_horseshoe[t])/0.5
-
-                    # self.phi_t[t,:] = (1/(self.b0_horseshoe*np.ones(self.k)) +
-                    #                      0.5 * (self.mt1t[:, t] ** 2 + np.abs(np.diag(self.St1t[:, :, t])))
-                    #                      / self.lambda_t_horseshoe[t])/(self.a0_horseshoe - 0.5)
 
                     self.v[t,:] = (self.b0_horseshoe + (1/(self.phi_t[t,:])**2 + np.abs(np.diag(self.St1t[:, :, t]))))/(self.a0_horseshoe - 1)
                     self.delta[t] = (self.b0_horseshoe + (1/self.lambda_t_horseshoe[t]))/(self.a0_horseshoe - 1)
@@ -311,18 +310,6 @@ class TVPVARModel:
                     self.bt_h[m] = self.b0_h + updated_b / 2
 
                     self.sigma_t[:,m] = self.bt_h[m] / (self.at_h[m]-1)
-                # for m in range(self.M):
-                #
-                #     self.at_h[m] = self.a0_h + self.T_train
-                #
-                #     for t in range(self.T_train):
-                #         updated_b = np.sum(np.power(self.y_train[t, m] - self.X_train[t, m].T @ self.mt1t[:, t], 2))
-                #
-                #     self.bt_h[m] = self.b0_h + updated_b / 2
-                #
-                #     self.sigma_t[:, m] = self.bt_h[m] / self.at_h[m]
-
-
 
             else:
                 s_tinv = np.zeros((self.T_train, self.M))
@@ -370,6 +357,7 @@ class TVPVARModel:
                 iteration_delta = end_iteration - start_iteration
                 print(f'Seconds for one iteration: {np.round(iteration_delta,4)}'
                       f'\n Difference: {np.round(difference_parameters[self.counter],4)}')
+
             # Increase counter
             self.counter += 1
 
@@ -379,6 +367,8 @@ class TVPVARModel:
         return self.mt1t, self.St1t, self.sigma_t
 
     def klgamma(self, pa, pb, qa, qb):
+
+        ## The KL distance for the gamma distribution. It is not used, but ported from the MATLAB code.
 
         n = max([pb.shape[1], pa.shape[1]])
 
@@ -396,11 +386,14 @@ class TVPVARModel:
 
     def calculate_oos_predictions(self, total_h=8, constant=True, number_of_draws=0, print_status=True):
 
-        constant_binary = 0
+        ## Calculate the out-of-sample predictions for the model.
 
+        # To take the constant into account, there might be a situation where this is not necessary
+        constant_binary = 0
         if constant:
             constant_binary = 1
 
+        ## Switch is included to reset the priors as prediction is according to an extending window
         self.prediction_switch = True
 
         self.initial_T_train = self.T_train
@@ -465,14 +458,20 @@ class TVPVARModel:
 
     def calculate_metrics(self, total_h=8, number_of_draws=0, constant=True, print_status=True):
 
+        ## Calculate h-step MSFE & ALPL metrics for a pre-specified h-forecast horizon.
+
         msfe_tvp = np.zeros((total_h, self.M))
         alpl = np.zeros(total_h)
+
+        ## Calculate the out-of-sample predictions that are used to calculate the metrics.
 
         self.y_pred = self.calculate_oos_predictions(total_h, constant, number_of_draws, print_status)
 
         for h in range(total_h):
 
             lpl = np.zeros(self.number_of_predictions - h)
+
+            ## Due to the zero-indexing of Python this is the workaround for the 1-step forecast
 
             if h == 0:
                 y_true_h = self.y[(self.train_index - self.p):]
@@ -484,6 +483,8 @@ class TVPVARModel:
                                                      allow_singular=True) + 1e-16)
 
                 alpl[h] = lpl.mean()
+
+            ## For the 2-step until h-step forecast horizons the metrics are calculated below
 
             else:
                 y_true_h = self.y[(self.train_index - self.p + h):]
@@ -500,6 +501,8 @@ class TVPVARModel:
 
     def insample_msfe(self):
 
+        ## Estimating insample MSFE
+
         self.insample_y_pred = np.zeros((self.T_train, self.M))
 
         for m in range(self.M):
@@ -511,6 +514,7 @@ class TVPVARModel:
 
         return self.insample_msfe_calculated
 
+## Outdated TVP-BVAR the contemperanous values approach. The model used in the paper is tvp_ar_contemp_decomposition()
 
 def tvp_ar_contemp(T, M, p, train, X, y, prior='lasso', total_h=8, iterations=50, print_status=False, prior_parameters=None):
     # Contemperous values added
@@ -553,6 +557,8 @@ def tvp_ar_contemp(T, M, p, train, X, y, prior='lasso', total_h=8, iterations=50
     return msfe, alpl, mt1t_full, mt1t_coeff, sigma, complete_msfe
 
 
+## Outdated TVP-BVAR without the contemperanous values approach. The model used in the paper is tvp_ar_contemp_decomposition()
+
 def tvp_ar_non_contemp(T, M, p, train, X, y, prior='lasso', total_h=8, iterations=50, print_status=False):
     mt1t_mean_set = []
     sigma_set = []
@@ -582,6 +588,8 @@ def tvp_ar_non_contemp(T, M, p, train, X, y, prior='lasso', total_h=8, iteration
     sigma = np.block(sigma_set)
 
     return msfe, alpl, mt1t, sigma
+
+## TVP-BVAR using the Cholesky decomposition approach Huber et. al (2020). It builts on the TVPVARModel class
 
 class tvp_ar_contemp_decomposition:
 

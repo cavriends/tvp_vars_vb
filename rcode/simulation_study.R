@@ -1,5 +1,15 @@
 setwd('/Users/cavriends/Dropbox/ESE/MSc Econometrics/Thesis/Bayesian VARs/Code/Jupyter/rcode/')
 
+# The simulation_study.R script carries out the simulation study. There are several important parameters.
+# mcmc_iter_list: is a list that contains the number of MCMC iterations for the BVAR and TVP-BVAR
+# n_iterations: the number of simulation iterations, in the thesis this is constrained at 200
+# m_list: is a list of the different Ms, in the thesis these are 3 & 7
+# T_list: is a list of the different time horizons, in the thesis these are 100 & 200
+# sparsity_list: is a list containing the different percentages of sparsity, default are 0.20 (80%) and 0.40 (60%)
+# p: is the number of lags, default in the thesis is 1
+# An extra note, it is completely parallized code using mclapply(). This does not print to the Rstudio command line.
+# Therefore, if one would like to monitor progress, one has to run it with Rscript in a terminal.
+
 source("functions.R")
 
 simulation_run <- function(run, M, mcmc_iter, T, sparsity) {

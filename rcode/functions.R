@@ -1,5 +1,7 @@
 setwd('/Users/cavriends/Dropbox/ESE/MSc Econometrics/Thesis/Bayesian VARs/Code/Jupyter/rcode/')
 
+# This functions.R script, contains all the functions necessary to conduct the simulation study.
+
 # install.packages('vars')
 # install.packages('BVAR')
 # install.packages("MARX")
