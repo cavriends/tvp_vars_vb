@@ -24,7 +24,7 @@ A rough outline of the file structure is as follows:
 - **sensitivity** - contains all .pkl files that were created in the sensitivity analysis
 - **simulations** - contains the simulated datasets and results of the simulation study
   - *datasets* - contains the simulated datasets, mind you that this folder is aroud 1GB.
-  - *results* - contains the results for the simulation study
+  - *results* - contains all the .pkl files with the results of the simulation study
 - **utils** - the additional functions that are used in Python
   - *data_utils.py* - contains the standardisation, transformation and DGP functions
   - *lstm_models.py* - contains the code for an experiment with an LSTM
