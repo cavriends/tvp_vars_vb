@@ -33,4 +33,4 @@ A rough outline of the file structure is as follows:
 
 - **visualisations** - contains all the visualisations that are in the thesis
 
-If you are not familiar with Git a good place to start is [here](https://docs.gitlab.com/ee/topics/git/index.html).
+If you're not familiar with Git a good place to start is [here](https://docs.gitlab.com/ee/topics/git/index.html).
